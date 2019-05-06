@@ -53,7 +53,7 @@ parameters:
     default: false
   no-output-timeout:
     description: |
-      Elapsed time that the cluster creation command can run without output.
+      Elapsed time that the cluster deletion command can run without output.
       The string is a decimal with unit suffix, such as “20m”, “1.25h”, “5s”
     type: string
     default: "30m"

@@ -1,5 +1,5 @@
 description: |
-  Creates an AKS cluster and required resources.
+  Creates an AKS cluster and optionally the required resource group.
 
 parameters:
   cluster-name:
@@ -239,7 +239,6 @@ steps:
         if [ -n "${SUBSCRIPTION}" ]; then
           set -- "$@" --subscription "${SUBSCRIPTION}"
         fi
-        set -- "$@"
         <<# parameters.show-az-command >>set -x<</ parameters.show-az-command >>
         az aks show "$@"
         <<# parameters.show-az-command >>set +x<</ parameters.show-az-command >>

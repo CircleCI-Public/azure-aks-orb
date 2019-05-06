@@ -1,5 +1,5 @@
 description: |
-  Create an AKS cluster together, tests it, and tears it down.
+  Create an AKS cluster, test it, and tear it down.
 
 usage:
   version: 2.1
