@@ -1,0 +1,67 @@
+description: |
+  Create a kubernetes deployment.
+
+usage:
+  version: 2.1
+
+  orbs:
+    azure-aks: circleci/azure-aks@0.1.0
+    kubernetes: circleci/kubernetes@0.3.0
+
+  jobs:
+    create-deployment:
+      executor: azure-aks/default
+      parameters:
+        cluster-name:
+          description: |
+            Name of the AKS cluster
+          type: string
+        resource-group:
+          description: |
+            Resource group that the cluster is in
+          type: string
+      steps:
+        - checkout
+        - azure-aks/update-kubeconfig-with-credentials:
+            cluster-name: << parameters.cluster-name >>
+            resource-group: << parameters.resource-group >>
+            install-kubectl: true
+            perform-login: true
+        - kubernetes/create-or-update-resource:
+            resource-file-path: "tests/nginx-deployment/deployment.yaml"
+            resource-name: "deployment/nginx-deployment"
+
+  workflows:
+    deployment:
+      jobs:
+        - azure-aks/create-cluster:
+            cluster-name: aks-demo-deployment
+            resource-group: aks-demo-deployment-rg
+            create-resource-group: true
+            location: eastus
+            generate-ssh-keys: true
+        - create-deployment:
+            cluster-name: aks-demo-deployment
+            resource-group: aks-demo-deployment-rg
+            requires:
+              - azure-aks/create-cluster
+        - azure-aks/update-container-image:
+            cluster-name: aks-demo-deployment
+            resource-group: aks-demo-deployment-rg
+            resource-name: "deployment/nginx-deployment"
+            container-image-updates: "nginx=nginx:1.9.1"
+            record: true
+            requires:
+              - create-deployment
+            post-steps:
+              - kubernetes/delete-resource:
+                  resource-types: "deployment"
+                  resource-names: "nginx-deployment"
+                  wait: true
+        - azure-aks/delete-cluster:
+            cluster-name: aks-demo-deployment
+            resource-group: aks-demo-deployment-rg
+            delete-service-principal: true
+            delete-resource-group: true
+            requires:
+              - azure-aks/update-container-image

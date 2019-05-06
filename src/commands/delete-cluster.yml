@@ -1,0 +1,138 @@
+description: |
+  Deletes the cluster and optionally the associated resources.
+
+parameters:
+  cluster-name:
+    description: |
+      Name of the cluster to be deleted.
+    type: string
+  resource-group:
+    description: |
+      Resource group that the cluster is in.
+    type: string
+  delete-service-principal:
+    description: |
+      Whether the service principal for the cluster should also be deleted.
+    type: boolean
+  delete-resource-group:
+    description: |
+      Whether the specified resource group is to be deleted.
+    type: boolean
+    default: false
+  subscription:
+    description: |
+      Name or ID of subscription.
+    type: string
+    default: ""
+  no-wait:
+    description: |
+      Enable this to skip waiting for the long-running operation to finish.
+    type: boolean
+    default: false
+  show-az-command:
+    description: |
+      Whether to show the az command(s) used.
+    type: boolean
+    default: false
+  no-output-timeout:
+    description: |
+      Elapsed time that the cluster creation command can run without output.
+      The string is a decimal with unit suffix, such as “20m”, “1.25h”, “5s”
+    type: string
+    default: "30m"
+
+steps:
+  - when:
+      condition: << parameters.delete-service-principal >>
+      steps:
+        run:
+          name: Get the id of the Service Principal for the cluster
+          command: |
+            CLUSTER_NAME="<< parameters.cluster-name >>"
+            RESOURCE_GROUP="<< parameters.resource-group >>"
+            SUBSCRIPTION="<< parameters.subscription >>"
+
+            if [ -n "${CLUSTER_NAME}" ]; then
+              set -- "$@" --name "${CLUSTER_NAME}"
+            fi
+            if [ -n "${RESOURCE_GROUP}" ]; then
+              set -- "$@" --resource-group "${RESOURCE_GROUP}"
+            fi
+            if [ -n "${SUBSCRIPTION}" ]; then
+              set -- "$@" --subscription "${SUBSCRIPTION}"
+            fi
+
+            set -- "$@" --query servicePrincipalProfile.clientId -o tsv
+
+            <<# parameters.show-az-command >>set -x<</ parameters.show-az-command >>
+            SERVICE_PRINCIPAL_ID=$(az aks show "$@")
+            <<# parameters.show-az-command >>set +x<</ parameters.show-az-command >>
+
+            echo "${SERVICE_PRINCIPAL_ID}" > cci_aks_orb_sp_id_${CLUSTER_NAME}_${RESOURCE_GROUP}
+  - when:
+      condition: << parameters.delete-resource-group >>
+      steps:
+        - run:
+            name: Delete AKS cluster and associated resources (e.g. resource group)
+            command: |
+              RESOURCE_GROUP="<< parameters.resource-group >>"
+              SUBSCRIPTION="<< parameters.subscription >>"
+              NO_WAIT="<< parameters.no-wait >>"
+              if [ -n "${RESOURCE_GROUP}" ]; then
+                set -- "$@" --resource-group "${RESOURCE_GROUP}"
+              fi
+              if [ -n "${SUBSCRIPTION}" ]; then
+                set -- "$@" --subscription "${SUBSCRIPTION}"
+              fi
+              if [ "${NO_WAIT}" == "true" ]; then
+                set -- "$@" --no-wait
+              fi
+              <<# parameters.show-az-command >>set -x<</ parameters.show-az-command >>
+              az group delete "$@" --yes
+              <<# parameters.show-az-command >>set +x<</ parameters.show-az-command >>
+            no_output_timeout: << parameters.no-output-timeout >>
+  - unless:
+      condition: << parameters.delete-resource-group >>
+      steps:
+        - run:
+            name: Delete AKS cluster
+            command: |
+              CLUSTER_NAME="<< parameters.cluster-name >>"
+              RESOURCE_GROUP="<< parameters.resource-group >>"
+              SUBSCRIPTION="<< parameters.subscription >>"
+              NO_WAIT="<< parameters.no-wait >>"
+              if [ -n "${CLUSTER_NAME}" ]; then
+                set -- "$@" --name "${CLUSTER_NAME}"
+              fi
+              if [ -n "${RESOURCE_GROUP}" ]; then
+                set -- "$@" --resource-group "${RESOURCE_GROUP}"
+              fi
+              if [ -n "${SUBSCRIPTION}" ]; then
+                set -- "$@" --subscription "${SUBSCRIPTION}"
+              fi
+              if [ "${NO_WAIT}" == "true" ]; then
+                set -- "$@" --no-wait
+              fi
+              <<# parameters.show-az-command >>set -x<</ parameters.show-az-command >>
+              az aks delete "$@" --yes
+              <<# parameters.show-az-command >>set +x<</ parameters.show-az-command >>
+            no_output_timeout: << parameters.no-output-timeout >>
+  - when:
+      condition: << parameters.delete-service-principal >>
+      steps:
+        run:
+          name: Delete the Service Principal for the cluster
+          command: |
+            CLUSTER_NAME="<< parameters.cluster-name >>"
+            RESOURCE_GROUP="<< parameters.resource-group >>"
+            SUBSCRIPTION="<< parameters.subscription >>"
+
+            if [ -n "${SUBSCRIPTION}" ]; then
+              set -- "$@" --subscription "${SUBSCRIPTION}"
+            fi
+
+            SERVICE_PRINCIPAL_ID=$(cat cci_aks_orb_sp_id_${CLUSTER_NAME}_${RESOURCE_GROUP})
+            set -- "$@" --id "${SERVICE_PRINCIPAL_ID}"
+            <<# parameters.show-az-command >>set -x<</ parameters.show-az-command >>
+            az ad sp delete "$@"
+            <<# parameters.show-az-command >>set +x<</ parameters.show-az-command >>

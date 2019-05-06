@@ -1,0 +1,54 @@
+description: |
+  Create an AKS cluster together, tests it, and tears it down.
+
+usage:
+  version: 2.1
+
+  orbs:
+    azure-aks: circleci/azure-aks@0.1.0
+    kubernetes: circleci/kubernetes@0.3.0
+
+  jobs:
+    test-cluster:
+      executor: azure-aks/default
+      parameters:
+        cluster-name:
+          description: |
+            Name of the AKS cluster
+          type: string
+        resource-group:
+          description: |
+            Resource group that the cluster is in
+          type: string
+      steps:
+        - azure-aks/update-kubeconfig-with-credentials:
+            cluster-name: << parameters.cluster-name >>
+            resource-group: << parameters.resource-group >>
+            install-kubectl: true
+            perform-login: true
+        - run:
+            name: Test cluster
+            command: |
+              kubectl get services
+
+  workflows:
+    deployment:
+      jobs:
+        - azure-aks/create-cluster:
+            cluster-name: my-aks-demo
+            resource-group: my-aks-demo-rg
+            create-resource-group: true
+            location: eastus
+            generate-ssh-keys: true
+        - test-cluster:
+            cluster-name: my-aks-demo
+            resource-group: my-aks-demo-rg
+            requires:
+              - azure-aks/create-cluster
+        - azure-aks/delete-cluster:
+            cluster-name: my-aks-demo
+            resource-group: my-aks-demo-rg
+            delete-service-principal: true
+            delete-resource-group: true
+            requires:
+              - test-cluster

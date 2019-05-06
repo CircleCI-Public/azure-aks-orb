@@ -1,0 +1,77 @@
+description: |
+  Deletes the AKS cluster and optionally the associated resources.
+
+  Requirements: Login to Azure is done via the azure-cli Orb and
+  requires environment variables storing the Azure user
+  or Service Principal credentials to be defined (See:
+  https://circleci.com/orbs/registry/orb/circleci/azure-cli#commands-login-with-user-or-service-principal)
+
+executor: << parameters.executor >>
+
+parameters:
+  executor:
+    description: |
+      Executor to use for this job.
+    type: executor
+    default: default
+  cluster-name:
+    description: |
+      Name of the AKS cluster to be deleted.
+    type: string
+  resource-group:
+    description: |
+      Resource group that the AKS cluster is in.
+    type: string
+  delete-service-principal:
+    description: |
+      Whether the service principal for the cluster should also be deleted.
+    type: boolean
+  delete-resource-group:
+    description: |
+      Whether the specified resource group is to be deleted.
+    type: boolean
+    default: false
+  subscription:
+    description: |
+      Name or ID of subscription.
+    type: string
+    default: ""
+  no-wait:
+    description: |
+      Enable this to skip waiting for the long-running operation to finish.
+    type: boolean
+    default: false
+  show-az-command:
+    description: |
+      Whether to show the az command(s) used.
+    type: boolean
+    default: false
+  get-admin-credentials:
+    description: |
+      Get cluster administrator credentials instead of cluster user credentials.
+    type: boolean
+    default: false
+  no-output-timeout:
+    description: |
+      Elapsed time that the cluster creation command can run without output.
+      The string is a decimal with unit suffix, such as “20m”, “1.25h”, “5s”
+    type: string
+    default: "30m"
+
+steps:
+  - update-kubeconfig-with-credentials:
+      cluster-name: << parameters.cluster-name >>
+      resource-group: << parameters.resource-group >>
+      subscription: << parameters.subscription >>
+      get-admin-credentials: << parameters.get-admin-credentials >>
+      install-kubectl: true
+      perform-login: true
+  - delete-cluster:
+      cluster-name: << parameters.cluster-name >>
+      resource-group: << parameters.resource-group >>
+      delete-service-principal: << parameters.delete-service-principal >>
+      delete-resource-group: << parameters.delete-resource-group >>
+      subscription: << parameters.subscription >>
+      no-wait: << parameters.no-wait >>
+      show-az-command: << parameters.show-az-command >>
+      no-output-timeout: << parameters.no-output-timeout >>

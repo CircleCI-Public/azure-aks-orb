@@ -1,0 +1,245 @@
+description: |
+  Creates an AKS cluster and required resources.
+
+parameters:
+  cluster-name:
+    description: |
+      Name of the AKS cluster to be created
+    type: string
+  resource-group:
+    description: |
+      Resource group that the AKS cluster will be created in.
+    type: string
+  create-resource-group:
+    description: |
+      Whether the specified resource group is to be created.
+    type: boolean
+    default: false
+  location:
+    description: |
+      Location that the AKS cluster will be created in.
+      The location is required if "create-resource-group" is set to true.
+    type: string
+    default: ""
+  subscription:
+    description: |
+      Name or ID of subscription.
+    type: string
+    default: ""
+  service-principal:
+    description: |
+      Service principal used for authentication to Azure APIs.
+    type: string
+    default: ""
+  client-secret:
+    description: |
+      Secret associated with the service principal. Required if "service-principal" is specified.
+    type: string
+    default: ""
+  node-count:
+    description: |
+      Configures the number of nodes in the Kubernetes node pool.
+      A value of -1 will be ignored.
+    type: integer
+    default: -1
+  node-osdisk-size:
+    description: |
+      Size in GB of the OS disk for each node in the node pool. Minimum 30 GB.
+      A value of -1 will be ignored.
+    type: integer
+    default: -1
+  node-vm-size:
+    description: |
+      Size of Virtual Machines to create as Kubernetes nodes.
+    type: string
+    default: ""
+  no-ssh-key:
+    description: |
+      Do not use or create a local SSH key.
+    type: boolean
+    default: true
+  generate-ssh-keys:
+    description: |
+      Generate SSH public and private key files if missing. The keys will be stored in the ~/.ssh directory.
+    type: boolean
+    default: false
+  ssh-key-value:
+    description: |
+      Public key path or key contents to install on node VMs for SSH access.
+    type: string
+    default: ""
+  admin-username:
+    description: |
+      Specify the name of the user account to create on node VMs for SSH access.
+    type: string
+    default: ""
+  dns-name-prefix:
+    description: |
+      Prefix for hostnames that are created.
+      If not specified, a hostname will be generated based on the managed cluster and resource group names.
+    type: string
+    default: ""
+  kubernetes-version:
+    description: |
+      Version of Kubernetes to use for creating the cluster, such as "1.11.8" or "1.12.6".
+    type: string
+    default: ""
+  tags:
+    description: |
+      Space-separated tags in 'key[=value]' format, for the cluster.
+    type: string
+    default: ""
+  resource-group-tags:
+    description: |
+      Space-separated tags in 'key[=value]' format, for the resource group to be created.
+      Only effective when create-resource-group is set to true.
+    type: string
+    default: ""
+  no-wait:
+    description: |
+      Enable this to skip waiting for the long-running operation to finish.
+    type: boolean
+    default: false
+  skip-kubectl-install:
+    description: |
+      Whether to skip the installation of kubectl.
+    type: boolean
+    default: false
+  show-az-command:
+    description: |
+      Whether to show the az command(s) run.
+    type: boolean
+    default: false
+  no-output-timeout:
+    description: |
+      Elapsed time that the cluster creation command can run on CircleCI without output.
+      The string is a decimal with unit suffix, such as “20m”, “1.25h”, “5s”
+    type: string
+    default: "45m"
+
+steps:
+  - unless:
+      condition: << parameters.skip-kubectl-install >>
+      steps:
+        - kubernetes/install
+  - when:
+      condition: << parameters.create-resource-group >>
+      steps:
+        - run:
+            name: Create AKS resource group
+            command: |
+              LOCATION="<< parameters.location >>"
+              RESOURCE_GROUP="<< parameters.resource-group >>"
+              SUBSCRIPTION="<< parameters.subscription >>"
+              TAGS="<< parameters.resource-group-tags >>"
+              if [ -n "${LOCATION}" ]; then
+                set -- "$@" --location "${LOCATION}"
+              fi
+              if [ -n "${RESOURCE_GROUP}" ]; then
+                set -- "$@" --name "${RESOURCE_GROUP}"
+              fi
+              if [ -n "${SUBSCRIPTION}" ]; then
+                set -- "$@" --subscription "${SUBSCRIPTION}"
+              fi
+              if [ -n "${TAGS}" ]; then
+                set -- "$@" --tags "${TAGS}"
+              fi
+              <<# parameters.show-az-command >>set -x<</ parameters.show-az-command >>
+              az group create "$@"
+              <<# parameters.show-az-command >>set +x<</ parameters.show-az-command >>
+  - run:
+      name: Create AKS cluster
+      command: |
+        CLUSTER_NAME="<< parameters.cluster-name >>"
+        RESOURCE_GROUP="<< parameters.resource-group >>"
+        LOCATION="<< parameters.location >>"
+        SUBSCRIPTION="<< parameters.subscription >>"
+        SERVICE_PRINCIPAL="<< parameters.service-principal >>"
+        CLIENT_SECRET="<< parameters.client-secret >>"
+        NODE_COUNT="<< parameters.node-count >>"
+        NODE_OSDISK_SIZE="<< parameters.node-osdisk-size >>"
+        NODE_VM_SIZE="<< parameters.node-vm-size >>"
+        GENERATE_SSH_KEYS="<< parameters.generate-ssh-keys >>"
+        NO_SSH_KEY="<< parameters.no-ssh-key >>"
+        SSH_KEY_VALUE="<< parameters.ssh-key-value >>"
+        ADMIN_USERNAME="<< parameters.admin-username >>"
+        DNS_NAME_PREFIX="<< parameters.dns-name-prefix >>"
+        KUBERNETES_VERSION="<< parameters.kubernetes-version >>"
+        TAGS="<< parameters.tags >>"
+        NO_WAIT="<< parameters.no-wait >>"
+        if [ -n "${CLUSTER_NAME}" ]; then
+          set -- "$@" --name "${CLUSTER_NAME}"
+        fi
+        if [ -n "${RESOURCE_GROUP}" ]; then
+          set -- "$@" --resource-group "${RESOURCE_GROUP}"
+        fi
+        if [ -n "${LOCATION}" ]; then
+          set -- "$@" --location "${LOCATION}"
+        fi
+        if [ -n "${SUBSCRIPTION}" ]; then
+          set -- "$@" --subscription "${SUBSCRIPTION}"
+        fi
+        if [ -n "${SERVICE_PRINCIPAL}" ]; then
+          set -- "$@" --service-principal "${SERVICE_PRINCIPAL}"
+        fi
+        if [ -n "${CLIENT_SECRET}" ]; then
+          set -- "$@" --client-secret "${CLIENT_SECRET}"
+        fi
+        if [ "${NODE_COUNT}" != "-1" ]; then
+          set -- "$@" --node-count "${NODE_COUNT}"
+        fi
+        if [ "${NODE_OSDISK_SIZE}" != "-1" ]; then
+          set -- "$@" --node-osdisk-size "${NODE_OSDISK_SIZE}"
+        fi
+        if [ -n "${NODE_VM_SIZE}" ]; then
+          set -- "$@" --node-vm-size "${NODE_VM_SIZE}"
+        fi
+        if [ "${GENERATE_SSH_KEYS}" == "true" ]; then
+          set -- "$@" --generate-ssh-keys
+        fi
+        if [ "${NO_SSH_KEY}" == "true" ]; then
+          set -- "$@" --no-ssh-key
+        fi
+        if [ -n "${SSH_KEY_VALUE}" ]; then
+          set -- "$@" --ssh-key-value "${SSH_KEY_VALUE}"
+        fi
+        if [ -n "${ADMIN_USERNAME}" ]; then
+          set -- "$@" --admin-username "${ADMIN_USERNAME}"
+        fi
+        if [ -n "${DNS_NAME_PREFIX}" ]; then
+          set -- "$@" --dns-name-prefix "${DNS_NAME_PREFIX}"
+        fi
+        if [ -n "${KUBERNETES_VERSION}" ]; then
+          set -- "$@" --kubernetes-version "${KUBERNETES_VERSION}"
+        fi
+        if [ -n "${TAGS}" ]; then
+          set -- "$@" --tags "${TAGS}"
+        fi
+        if [ "${NO_WAIT}" == "true" ]; then
+          set -- "$@" --no-wait
+        fi
+
+        <<# parameters.show-az-command >>set -x<</ parameters.show-az-command >>
+        az aks create "$@"
+        <<# parameters.show-az-command >>set +x<</ parameters.show-az-command >>
+      no_output_timeout: << parameters.no-output-timeout >>
+  - run:
+      name: Verify cluster
+      command: |
+        CLUSTER_NAME="<< parameters.cluster-name >>"
+        RESOURCE_GROUP="<< parameters.resource-group >>"
+        SUBSCRIPTION="<< parameters.subscription >>"
+
+        if [ -n "${CLUSTER_NAME}" ]; then
+          set -- "$@" --name "${CLUSTER_NAME}"
+        fi
+        if [ -n "${RESOURCE_GROUP}" ]; then
+          set -- "$@" --resource-group "${RESOURCE_GROUP}"
+        fi
+        if [ -n "${SUBSCRIPTION}" ]; then
+          set -- "$@" --subscription "${SUBSCRIPTION}"
+        fi
+        set -- "$@"
+        <<# parameters.show-az-command >>set -x<</ parameters.show-az-command >>
+        az aks show "$@"
+        <<# parameters.show-az-command >>set +x<</ parameters.show-az-command >>
