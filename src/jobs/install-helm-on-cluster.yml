@@ -1,0 +1,117 @@
+description: |
+  Installs helm onto the AKS cluster.
+  Note: Parameters like tiller-tls need to be set to
+  apply security configurations to the tiller configuration.
+
+  Requirements: Login to Azure is done via the azure-cli Orb and
+  requires environment variables storing the Azure user
+  or Service Principal credentials to be defined (See:
+  https://circleci.com/orbs/registry/orb/circleci/azure-cli#commands-login-with-user-or-service-principal)
+
+executor: << parameters.executor >>
+
+parameters:
+  executor:
+    description: |
+      Executor to use for this job.
+    type: executor
+    default: default
+  cluster-name:
+    description: |
+      The name of the AKS cluster.
+    type: string
+  resource-group:
+    description: |
+      Resource group that the AKS cluster is in.
+    type: string
+  subscription:
+    description: |
+      Name or ID of subscription.
+    type: string
+    default: ""
+  tiller-tls:
+    description: |
+      Install Tiller with TLS enabled
+    type: boolean
+    default: false
+  tiller-tls-cert:
+    description: |
+      The path to TLS certificate file to install with Tiller
+    type: string
+    default: ""
+  tiller-tls-hostname:
+    description: |
+      The server name used to verify the hostname on the returned
+      certificates from Tiller
+    type: string
+    default: ""
+  tiller-tls-key:
+    description: |
+      The path to TLS key file to install with Tiller
+    type: string
+    default: ""
+  tiller-tls-verify:
+    description: |
+      Install Tiller with TLS enabled and to verify remote certificates
+    type: boolean
+    default: false
+  tiller-ca-cert:
+    description: |
+      The path to CA root certificate
+    type: string
+    default: ""
+  tiller-namespace:
+    description: |
+      Specify the namespace of Tiller
+    type: string
+    default: ""
+  service-account:
+    description: |
+      Name of service account to Tiller to use.
+      Note: A role binding which specifies a role
+      and a service account with the specified name, must
+      be created in advance, unless
+      enable-cluster-wide-admin-access is set to true.
+    type: string
+    default: ""
+  enable-cluster-wide-admin-access:
+    description: |
+      Allow tiller to have admin access to the entire AKS cluster
+      by creating a role binding with a cluster-admin role
+      and a service account with name as specified by the service-account
+      parameter or defaulting to "tiller".
+      Note: This is a convenience option but is typically not advisable
+      in a production cluster for security reasons.
+    type: boolean
+    default: false
+  wait:
+    description: |
+      Block until Tiller is running and ready to receive requests
+    type: boolean
+    default: true
+  get-admin-credentials:
+    description: |
+      Get cluster administrator credentials for updating kubeconfig
+      instead of cluster user credentials.
+    type: boolean
+    default: false
+
+steps:
+  - update-kubeconfig-with-credentials:
+      cluster-name: << parameters.cluster-name >>
+      resource-group: << parameters.resource-group >>
+      subscription: << parameters.subscription >>
+      get-admin-credentials: << parameters.get-admin-credentials >>
+      install-kubectl: true
+      perform-login: true
+  - helm/install-helm-on-cluster:
+      tiller-tls: << parameters.tiller-tls >>
+      tiller-tls-cert: << parameters.tiller-tls-cert >>
+      tiller-tls-hostname: << parameters.tiller-tls-hostname >>
+      tiller-tls-key: << parameters.tiller-tls-key >>
+      tiller-tls-verify: << parameters.tiller-tls-verify >>
+      tiller-ca-cert: << parameters.tiller-ca-cert >>
+      tiller-namespace: << parameters.tiller-namespace >>
+      service-account: << parameters.service-account >>
+      enable-cluster-wide-admin-access: << parameters.enable-cluster-wide-admin-access >>
+      wait: << parameters.wait >>

@@ -1,0 +1,119 @@
+description: |
+  Updates the container image(s) of a resource on AKS.
+
+  Requirements: Login to Azure is done via the azure-cli Orb and
+  requires environment variables storing the Azure user
+  or Service Principal credentials to be defined (See:
+  https://circleci.com/orbs/registry/orb/circleci/azure-cli#commands-login-with-user-or-service-principal)
+
+executor: << parameters.executor >>
+
+parameters:
+  executor:
+    description: |
+      Executor to use for this job.
+    type: executor
+    default: default
+  cluster-name:
+    description: |
+      The name of the cluster where the resource is to be managed.
+    type: string
+    default: ""
+  resource-group:
+    description: |
+      Resource group that the AKS cluster is in.
+    type: string
+    default: ""
+  subscription:
+    description: |
+      Name or ID of subscription.
+    type: string
+    default: ""
+  resource-file-path:
+    description: |
+      Path to file used to update the resource.
+      Either resource-file-path or resource-name need to be specified.
+    type: string
+    default: ""
+  resource-name:
+    description: |
+      Resource name in the format TYPE/NAME e.g. deployment/nginx-deployment
+      Either resource-file-path or resource-name need to be specified.
+      This is required if get-rollout-status is set to true.
+    type: string
+    default: ""
+  container-image-updates:
+    description: |
+      Specify a list of container image updates
+      (space-delimited name value pairs in the form
+      CONTAINER_NAME_1=CONTAINER_IMAGE_1 ... CONTAINER_NAME_N=CONTAINER_IMAGE_N)
+      to be applied to the resource via `kubectl set image`.
+      e.g. "busybox=busybox nginx=nginx:1.9.1"
+    type: string
+  namespace:
+    description: |
+      The kubernetes namespace that should be used.
+    type: string
+    default: ""
+  record:
+    description: |
+      Whether to record the update
+    type: boolean
+    default: false
+  get-rollout-status:
+    description: |
+      Get the status of the rollout.
+      This can only be used for resource types that are valid
+      for usage with `kubectl rollout` subcommands.
+    type: boolean
+    default: false
+  watch-rollout-status:
+    description: |
+      Whether to watch the status of the latest rollout until it's done.
+      Only effective if get-rollout-status is set to true.
+    type: boolean
+    default: true
+  pinned-revision-to-watch:
+    description: |
+      Pin a specific revision to be watched and abort watching if it is rolled
+      over by another revision.
+      Only effective if get-rollout-status is set to true.
+    type: string
+    default: ""
+  watch-timeout:
+    description: |
+      The length of time to wait before ending the watch, zero means never.
+      Any other values should contain a corresponding time unit (e.g. 1s, 2m, 3h).
+      Only effective if get-rollout-status is set to true.
+    type: string
+    default: ""
+  show-kubectl-command:
+    description: |
+      Whether to show the kubectl command used.
+    type: boolean
+    default: false
+  get-admin-credentials:
+    description: |
+      Get cluster administrator credentials instead of cluster user credentials.
+    type: boolean
+    default: false
+
+steps:
+  - update-kubeconfig-with-credentials:
+      cluster-name: << parameters.cluster-name >>
+      resource-group: << parameters.resource-group >>
+      subscription: << parameters.subscription >>
+      get-admin-credentials: << parameters.get-admin-credentials >>
+      install-kubectl: true
+      perform-login: true
+  - kubernetes/update-container-image:
+      resource-file-path: << parameters.resource-file-path >>
+      resource-name: << parameters.resource-name >>
+      container-image-updates: << parameters.container-image-updates >>
+      namespace: << parameters.namespace >>
+      record: << parameters.record >>
+      get-rollout-status: << parameters.get-rollout-status >>
+      watch-rollout-status: << parameters.watch-rollout-status >>
+      pinned-revision-to-watch: << parameters.pinned-revision-to-watch >>
+      watch-timeout: << parameters.watch-timeout >>
+      show-kubectl-command: << parameters.show-kubectl-command >>

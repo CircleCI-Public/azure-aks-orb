@@ -1,0 +1,45 @@
+description: |
+  Test installing a helm chart on a cluster.
+
+usage:
+  version: 2.1
+
+  orbs:
+    azure-aks: circleci/azure-aks@0.1.0
+    kubernetes: circleci/kubernetes@0.3.0
+
+  workflows:
+    deployment:
+      jobs:
+        - azure-aks/create-cluster:
+            cluster-name: my-aks-helm-demo
+            resource-group: my-aks-helm-demo-rg
+            create-resource-group: true
+            location: eastus
+            generate-ssh-keys: true
+        - azure-aks/install-helm-on-cluster:
+            cluster-name: my-aks-helm-demo
+            resource-group: my-aks-helm-demo-rg
+            enable-cluster-wide-admin-access: true
+            requires:
+              - azure-aks/create-cluster
+        - azure-aks/install-helm-chart:
+            cluster-name: my-aks-helm-demo
+            resource-group: my-aks-helm-demo-rg
+            chart: stable/grafana
+            release-name: grafana-release
+            requires:
+              - azure-aks/install-helm-on-cluster
+        - azure-aks/delete-helm-release:
+            cluster-name: my-aks-helm-demo
+            resource-group: my-aks-helm-demo-rg
+            release-name: grafana-release
+            requires:
+              - azure-aks/install-helm-chart
+        - azure-aks/delete-cluster:
+            cluster-name: my-aks-helm-demo
+            resource-group: my-aks-helm-demo-rg
+            delete-service-principal: true
+            delete-resource-group: true
+            requires:
+              - azure-aks/delete-helm-release

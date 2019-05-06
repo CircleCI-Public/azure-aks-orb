@@ -1,0 +1,12 @@
+description: |
+  Debian-based circleci/python Docker image to use
+parameters:
+  python-version:
+    type: string
+    default: "3.7"
+  debian-release:
+    type: string
+    default: "stretch"
+
+docker:
+  - image: circleci/python:<<parameters.python-version>>-<<parameters.debian-release>>

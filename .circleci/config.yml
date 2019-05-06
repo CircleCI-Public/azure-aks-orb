@@ -1,0 +1,528 @@
+version: 2.1
+
+integration_test_filters: &integration_test_filters
+  branches:
+    ignore: /.*/
+  tags:
+    only: /(integration|master)-.*/
+
+orb_promotion_filters: &orb_promotion_filters
+  branches:
+    ignore: /.*/
+  tags:
+    only: /^(major|minor|patch)-release-v\d+\.\d+\.\d+$/
+
+orbs:
+  azure-cli: circleci/azure-cli@1.1.0
+  azure-aks: sandbox/azure-aks@dev:alpha
+  cli: circleci/circleci-cli@0.1.2
+  orb-tools: circleci/orb-tools@7.3.0
+  queue: eddiewebb/queue@1.1.2
+  helm: circleci/helm@0.1.0
+  kubernetes: circleci/kubernetes@dev:alpha
+
+executors:
+  python2-browsers:
+    docker:
+      - image: circleci/python:2.7-browsers
+  python3-browsers:
+    docker:
+      - image: circleci/python:3-browsers
+
+commands:
+  quick-cluster-tests:
+    steps:
+      - run:
+          name: Run some tests on the cluster
+          command: |
+            kubectl get nodes
+            kubectl cluster-info
+            kubectl config view
+            kubectl config get-contexts
+            kubectl get pods --namespace kube-system
+  delete-resource-group:
+    parameters:
+      cluster-name:
+        type: string
+      resource-group:
+        type: string
+        default: ""
+    steps:
+      - run:
+          name: Delete resource group separately for testing purposes
+          command: |
+            az group delete --name << parameters.cluster-name >> --resource-group << parameters.resource-group >> --yes
+  delete-service-principal:
+    parameters:
+      cluster-name:
+        type: string
+    steps:
+      - run:
+          name: Delete Service Principal separately for testing purposes
+          command: |
+            az ad sp list | jq -r ".[] | select (.displayName | contains(\"<< parameters.cluster-name >>\")) | .objectId" | xargs -n1 az ad sp delete --id
+jobs:
+  setup-cluster:
+    parameters:
+      executor:
+        type: executor
+      cluster-name:
+        type: string
+      resource-group:
+        type: string
+      create-resource-group:
+        type: boolean
+        default: false
+      location:
+        type: string
+        default: ""
+    executor: << parameters.executor >>
+    steps:
+      - azure-cli/install
+      - azure-cli/login-with-user-or-service-principal
+      - azure-aks/create-cluster:
+          cluster-name: << parameters.cluster-name >>
+          resource-group: << parameters.resource-group >>
+          create-resource-group: << parameters.create-resource-group >>
+          location: << parameters.location >>
+          generate-ssh-keys: true
+          admin-username: myuser
+          tags: name=aksorb,purpose=aksorbtest
+          show-az-command: true
+      - azure-aks/update-kubeconfig-with-credentials:
+          cluster-name: << parameters.cluster-name >>
+          resource-group: << parameters.resource-group >>
+          get-admin-credentials: false
+          install-kubectl: true
+      - quick-cluster-tests
+  test-update-kubeconfig:
+    parameters:
+      executor:
+        type: executor
+      cluster-name:
+        type: string
+      resource-group:
+        type: string
+        default: ""
+      subscription:
+        type: string
+        default: ""
+      get-admin-credentials:
+        type: boolean
+        default: false
+      install-kubectl:
+        type: boolean
+        default: false
+    executor: << parameters.executor >>
+    steps:
+      - azure-aks/update-kubeconfig-with-credentials:
+          cluster-name: << parameters.cluster-name >>
+          resource-group: << parameters.resource-group >>
+          subscription: << parameters.subscription >>
+          get-admin-credentials: << parameters.get-admin-credentials >>
+          install-kubectl: << parameters.install-kubectl >>
+          perform-login: true
+      - kubernetes/install
+      - run:
+          name: Test with kubectl
+          command: |
+            cat ~/.kube/config | grep "<< parameters.cluster-name >>"
+            kubectl cluster-info
+  test-cluster:
+    parameters:
+      executor:
+        type: executor
+      cluster-name:
+        type: string
+      resource-group:
+        type: string
+        default: ""
+      subscription:
+        type: string
+        default: ""
+    executor: << parameters.executor >>
+    steps:
+      - checkout
+      - kubernetes/install
+      - azure-cli/install
+      - azure-cli/login-with-user-or-service-principal
+      # Test various update-kubeconfig options
+      - azure-aks/update-kubeconfig-with-credentials:
+          cluster-name: << parameters.cluster-name >>
+          resource-group: << parameters.resource-group >>
+          subscription: << parameters.subscription >>
+          get-admin-credentials: true
+          install-kubectl: true
+      - azure-aks/update-kubeconfig-with-credentials:
+          cluster-name: << parameters.cluster-name >>
+          resource-group: << parameters.resource-group >>
+          subscription: << parameters.subscription >>
+          get-admin-credentials: true
+          overwrite-existing: true
+          file: kube-config.test
+          install-kubectl: false
+      - quick-cluster-tests
+      - run:
+          name: Run kubectl proxy
+          command: |
+            kubectl proxy --port=8080
+          background: true
+      - run:
+          name: Test kube-config and k8s API
+          command: |
+            cat kube-config.test | grep << parameters.cluster-name >>
+            sleep 10
+            curl http://localhost:8080/api/
+      - kubernetes/create-or-update-resource:
+          resource-file-path: "tests/sample-app/sample-app.yaml"
+          get-rollout-status: true
+          resource-name: "deployment/azure-vote-back"
+      - run:
+          name: Verify application deployment
+          command: |
+            SERVICE_NAME=azure-vote-front
+            kubectl get service $SERVICE_NAME
+            kubectl get pods
+            sleep 30
+            for attempt in {1..20}; do
+              EXTERNAL_IP=$(kubectl get service $SERVICE_NAME | awk '{print $4}' | tail -n1)
+              echo "Checking external IP: ${EXTERNAL_IP}"
+              if [ -n "${EXTERNAL_IP}" ] && [ -z $(echo "${EXTERNAL_IP}" | grep "pending") ]; then
+                break
+              fi
+              echo "Waiting for external IP to be ready: ${EXTERNAL_IP}"
+              sleep 10
+            done
+            sleep 360
+            curl -s --retry 10 "http://$EXTERNAL_IP" | grep "Azure Voting App"
+  delete-cluster:
+    parameters:
+      executor:
+        type: executor
+      cluster-name:
+        type: string
+      resource-group:
+        type: string
+        default: ""
+      subscription:
+        type: string
+        default: ""
+      get-admin-credentials:
+        type: boolean
+        default: false
+      install-kubectl:
+        type: boolean
+        default: false
+      delete-service-principal:
+        type: boolean
+      delete-resource-group:
+        type: boolean
+        default: false
+    executor: << parameters.executor >>
+    steps:
+      - azure-aks/update-kubeconfig-with-credentials:
+          cluster-name: << parameters.cluster-name >>
+          resource-group: << parameters.resource-group >>
+          subscription: << parameters.subscription >>
+          get-admin-credentials: << parameters.get-admin-credentials >>
+          install-kubectl: << parameters.install-kubectl >>
+          perform-login: true
+      - azure-aks/delete-cluster:
+          cluster-name: << parameters.cluster-name >>
+          resource-group: << parameters.resource-group >>
+          subscription: << parameters.subscription >>
+          delete-service-principal: << parameters.delete-service-principal >>
+          delete-resource-group: << parameters.delete-resource-group >>
+          no-wait: false
+          no-output-timeout: 20m
+      - unless:
+          condition: << parameters.delete-resource-group >>
+          steps:
+            - delete-resource-group:
+                cluster-name: << parameters.cluster-name >>
+                resource-group: << parameters.resource-group >>
+      - unless:
+          condition: << parameters.delete-service-principal >>
+          steps:
+            - delete-service-principal:
+                cluster-name: << parameters.cluster-name >>
+  create-deployment:
+    parameters:
+      executor:
+        type: executor
+      cluster-name:
+        description: |
+          Name of the AKS cluster
+        type: string
+      resource-group:
+        type: string
+        default: ""
+      subscription:
+        type: string
+        default: ""
+      get-admin-credentials:
+        type: boolean
+        default: false
+      install-kubectl:
+        type: boolean
+        default: false
+    executor: << parameters.executor >>
+    steps:
+      - checkout
+      - azure-cli/install
+      - azure-cli/login-with-user-or-service-principal
+      - azure-aks/update-kubeconfig-with-credentials:
+          cluster-name: << parameters.cluster-name >>
+          resource-group: << parameters.resource-group >>
+          subscription: << parameters.subscription >>
+          get-admin-credentials: << parameters.get-admin-credentials >>
+          install-kubectl: << parameters.install-kubectl >>
+      - kubernetes/create-or-update-resource:
+          resource-file-path: "tests/nginx-deployment/deployment.yaml"
+          resource-name: "deployment/nginx-deployment"
+          get-rollout-status: true
+  pre-orb-promotion-check:
+    executor: azure-aks/default
+    steps:
+      - checkout
+      - run:
+          name: Check that this is a master branch commit
+          command: |
+            git clone "$CIRCLE_REPOSITORY_URL" repository
+            cd repository
+            git branch --contains ${CIRCLE_SHA1} | grep "master"
+  promote-orb-into-production:
+    parameters:
+      orb-name:
+        type: string
+        description: |
+          Semver-less name of the orb to be promoted into production
+      orb-ref:
+        type: string
+        description: |
+          Version information of the orb to be promoted into production
+    executor: cli/default
+    steps:
+      - checkout
+      - run:
+          name: Promote dev orb to production
+          command: |
+            RELEASE_TYPE=''
+            if [[ "${CIRCLE_TAG}" =~ major-release-* ]]; then
+              RELEASE_TYPE='major'
+            elif [[ "${CIRCLE_TAG}" =~ minor-release-* ]]; then
+              RELEASE_TYPE='minor'
+            elif [[ "${CIRCLE_TAG}" =~ patch-release-* ]]; then
+              RELEASE_TYPE='patch'
+            fi
+            if [ -n "${RELEASE_TYPE}" ]; then
+              circleci orb publish promote \
+              <<parameters.orb-name>>@<<parameters.orb-ref>> \
+              ${RELEASE_TYPE} --token \
+              ${CIRCLE_TOKEN}
+            fi
+workflows:
+  lint_pack-validate_publish-dev:
+    jobs:
+      - orb-tools/lint
+      - orb-tools/pack:
+          requires:
+            - orb-tools/lint
+      - queue/block_workflow:
+          consider-branch: false
+          time: '60'
+          requires:
+            - orb-tools/pack
+      - orb-tools/publish-dev:
+          orb-name: sandbox/azure-aks
+          context: orb-publishing
+          requires:
+            - queue/block_workflow
+      - orb-tools/trigger-integration-workflow:
+          name: trigger-integration-dev
+          ssh-fingerprints: 25:c1:ea:e7:f8:47:6a:a7:e0:5a:6f:2f:5d:86:7c:05
+          tag: integration
+          use-git-diff: false
+          static-release-type: patch
+          requires:
+            - orb-tools/publish-dev
+          filters:
+            branches:
+              ignore: master
+      - orb-tools/trigger-integration-workflow:
+          name: trigger-integration-master
+          ssh-fingerprints: 25:c1:ea:e7:f8:47:6a:a7:e0:5a:6f:2f:5d:86:7c:05
+          tag: master
+          use-git-diff: false
+          static-release-type: patch
+          requires:
+            - orb-tools/publish-dev
+          filters:
+            branches:
+              only: master
+  integration-tests:
+    jobs:
+      # jobs to test various commands
+      - setup-cluster:
+          name: setup-cluster-defaults
+          executor: azure-aks/default
+          cluster-name: ${RESOURCE_NAME_PREFIX}-orb-test-defaults
+          resource-group: ${RESOURCE_NAME_PREFIX}-orb-test-defaults-grp
+          create-resource-group: true
+          location: centralus
+          filters: *integration_test_filters
+      - test-update-kubeconfig:
+          name: test-update-kubeconfig_region
+          executor: azure-aks/default
+          cluster-name: ${RESOURCE_NAME_PREFIX}-orb-test-defaults
+          resource-group: ${RESOURCE_NAME_PREFIX}-orb-test-defaults-grp
+          install-kubectl: true
+          requires:
+            - setup-cluster-defaults
+          filters: *integration_test_filters
+      - test-cluster:
+          name: test-cluster-defaults
+          executor: azure-aks/default
+          cluster-name: ${RESOURCE_NAME_PREFIX}-orb-test-defaults
+          resource-group: ${RESOURCE_NAME_PREFIX}-orb-test-defaults-grp
+          requires:
+            - setup-cluster-defaults
+          filters: *integration_test_filters
+      - test-update-kubeconfig:
+          name: test-update-kubeconfig_azure_executor
+          executor: azure-aks/azure-docker
+          cluster-name: ${RESOURCE_NAME_PREFIX}-orb-test-defaults
+          resource-group: ${RESOURCE_NAME_PREFIX}-orb-test-defaults-grp
+          requires:
+            - setup-cluster-defaults
+          filters: *integration_test_filters
+      - test-update-kubeconfig:
+          name: test-update-kubeconfig_default_executor
+          executor: azure-aks/default
+          cluster-name: ${RESOURCE_NAME_PREFIX}-orb-test-defaults
+          resource-group: ${RESOURCE_NAME_PREFIX}-orb-test-defaults-grp
+          requires:
+            - setup-cluster-defaults
+          filters: *integration_test_filters
+      - delete-cluster:
+          # Test deleting the resource group and service principal separately
+          name: delete-cluster-defaults
+          executor: azure-aks/default
+          cluster-name: ${RESOURCE_NAME_PREFIX}-orb-test-defaults
+          resource-group: ${RESOURCE_NAME_PREFIX}-orb-test-defaults-grp
+          delete-service-principal: false
+          requires:
+            - test-cluster-defaults
+          filters: *integration_test_filters
+      # jobs to test helm usage
+      - azure-aks/create-cluster:
+          name: setup-cluster-helm
+          cluster-name: ${RESOURCE_NAME_PREFIX}-aks-orb-test-helm
+          resource-group: ${RESOURCE_NAME_PREFIX}-aks-orb-test-helm-grp
+          create-resource-group: true
+          location: centralus
+          filters: *integration_test_filters
+      - azure-aks/install-helm-on-cluster:
+          cluster-name: ${RESOURCE_NAME_PREFIX}-aks-orb-test-helm
+          resource-group: ${RESOURCE_NAME_PREFIX}-aks-orb-test-helm-grp
+          enable-cluster-wide-admin-access: true
+          requires:
+            - setup-cluster-helm
+          filters: *integration_test_filters
+      - azure-aks/install-helm-chart:
+          cluster-name: ${RESOURCE_NAME_PREFIX}-aks-orb-test-helm
+          resource-group: ${RESOURCE_NAME_PREFIX}-aks-orb-test-helm-grp
+          chart: stable/grafana
+          release-name: grafana-release
+          requires:
+            - azure-aks/install-helm-on-cluster
+          filters: *integration_test_filters
+      - azure-aks/delete-helm-release:
+          cluster-name: ${RESOURCE_NAME_PREFIX}-aks-orb-test-helm
+          resource-group: ${RESOURCE_NAME_PREFIX}-aks-orb-test-helm-grp
+          release-name: grafana-release
+          purge: true
+          timeout: 600
+          requires:
+            - azure-aks/install-helm-chart
+          filters: *integration_test_filters
+      - azure-aks/delete-cluster:
+          name: delete-cluster-helm
+          cluster-name: ${RESOURCE_NAME_PREFIX}-aks-orb-test-helm
+          resource-group: ${RESOURCE_NAME_PREFIX}-aks-orb-test-helm-grp
+          delete-service-principal: true
+          delete-resource-group: true
+          requires:
+            - azure-aks/delete-helm-release
+          filters: *integration_test_filters
+      # jobs to test kubectl usage
+      - azure-aks/create-cluster:
+          name: setup-cluster-kubectl
+          cluster-name: ${RESOURCE_NAME_PREFIX}-aks-orb-test-kubectl
+          resource-group: ${RESOURCE_NAME_PREFIX}-aks-orb-test-kubectl-grp
+          create-resource-group: true
+          location: eastus
+          node-count: 2
+          node-osdisk-size: 35
+          node-vm-size: "Standard_DS2_v2"
+          no-ssh-key: true
+          resource-group-tags: "owner=cci"
+          no-output-timeout: 30m
+          filters: *integration_test_filters
+      - create-deployment:
+          name: create-deployment-kubectl
+          executor: azure-aks/default
+          cluster-name: ${RESOURCE_NAME_PREFIX}-aks-orb-test-kubectl
+          resource-group: ${RESOURCE_NAME_PREFIX}-aks-orb-test-kubectl-grp
+          install-kubectl: true
+          requires:
+            - setup-cluster-kubectl
+          filters: *integration_test_filters
+      - azure-aks/update-container-image:
+          name: update-container-image-kubectl
+          cluster-name: ${RESOURCE_NAME_PREFIX}-aks-orb-test-kubectl
+          resource-group: ${RESOURCE_NAME_PREFIX}-aks-orb-test-kubectl-grp
+          resource-name: "deployment/nginx-deployment"
+          container-image-updates: "nginx=nginx:1.9.1"
+          get-rollout-status: true
+          record: true
+          post-steps:
+            - kubernetes/delete-resource:
+                resource-types: "deployments"
+                resource-names: "nginx-deployment"
+                now: true
+                wait: true
+          requires:
+            - create-deployment-kubectl
+          filters: *integration_test_filters
+      - azure-aks/delete-cluster:
+          name: delete-cluster-kubectl
+          cluster-name: ${RESOURCE_NAME_PREFIX}-aks-orb-test-kubectl
+          resource-group: ${RESOURCE_NAME_PREFIX}-aks-orb-test-kubectl-grp
+          delete-service-principal: true
+          delete-resource-group: false
+          requires:
+            - update-container-image-kubectl
+          post-steps:
+            - delete-resource-group:
+                cluster-name: ${RESOURCE_NAME_PREFIX}-aks-orb-test-kubectl
+                resource-group: ${RESOURCE_NAME_PREFIX}-aks-orb-test-kubectl-grp
+          filters: *integration_test_filters
+  # Tag-triggered workflow to promote a dev orb into production.
+  # The tag is expected to have been applied manually.
+  production-orb-publishing:
+    jobs:
+      - pre-orb-promotion-check:
+          filters: *orb_promotion_filters
+      - hold-for-approval:
+          type: approval
+          requires:
+            - pre-orb-promotion-check
+          filters: *orb_promotion_filters
+      - promote-orb-into-production:
+          orb-name: sandbox/azure-aks
+          orb-ref: dev:${CIRCLE_SHA1:0:7}
+          context: orb-publishing
+          requires:
+            - hold-for-approval
+          filters: *orb_promotion_filters

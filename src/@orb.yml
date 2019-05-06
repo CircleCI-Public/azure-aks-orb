@@ -1,0 +1,11 @@
+
+version: 2.1
+
+description: |
+  An orb for working with Azure AKS.
+  Project homepage: https://github.com/CircleCI-Public/azure-aks-orb
+
+orbs:
+  azure-cli: circleci/azure-cli@1.1.0
+  helm: circleci/helm@0.1.0
+  kubernetes: circleci/kubernetes@dev:alpha
