@@ -8,4 +8,4 @@ description: |
 orbs:
   azure-cli: circleci/azure-cli@1.1.0
   helm: circleci/helm@0.1.0
-  kubernetes: circleci/kubernetes@dev:alpha
+  kubernetes: circleci/kubernetes@0.3.0
