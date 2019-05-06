@@ -1,5 +1,5 @@
 description: |
-  Test installing a helm chart on a cluster.
+  Install a helm chart on a cluster.
 
 usage:
   version: 2.1

@@ -1,5 +1,5 @@
 description: |
-  Creates an AKS cluster and required resources.
+  Creates an AKS cluster and optionally the required resource group.
 
   Requirements: Login to Azure is done via the azure-cli Orb and
   requires environment variables storing the Azure user
