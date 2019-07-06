@@ -29,13 +29,13 @@ parameters:
   service-principal:
     description: |
       Service principal used for authentication to Azure APIs.
-    type: string
-    default: ""
+    type: env_var_name
+    default: AZURE_SP
   client-secret:
     description: |
       Secret associated with the service principal. Required if "service-principal" is specified.
-    type: string
-    default: ""
+    type: env_var_name
+    default: AZURE_SP_PASSWORD
   node-count:
     description: |
       Configures the number of nodes in the Kubernetes node pool.
@@ -154,8 +154,8 @@ steps:
         RESOURCE_GROUP="<< parameters.resource-group >>"
         LOCATION="<< parameters.location >>"
         SUBSCRIPTION="<< parameters.subscription >>"
-        SERVICE_PRINCIPAL="<< parameters.service-principal >>"
-        CLIENT_SECRET="<< parameters.client-secret >>"
+        SERVICE_PRINCIPAL="$<< parameters.service-principal >>"
+        CLIENT_SECRET="$<< parameters.client-secret >>"
         NODE_COUNT="<< parameters.node-count >>"
         NODE_OSDISK_SIZE="<< parameters.node-osdisk-size >>"
         NODE_VM_SIZE="<< parameters.node-vm-size >>"
