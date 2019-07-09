@@ -219,9 +219,7 @@ steps:
           set -- "$@" --no-wait
         fi
 
-        <<# parameters.show-az-command >>set -x<</ parameters.show-az-command >>
         az aks create "$@"
-        <<# parameters.show-az-command >>set +x<</ parameters.show-az-command >>
       no_output_timeout: << parameters.no-output-timeout >>
   - run:
       name: Verify cluster
