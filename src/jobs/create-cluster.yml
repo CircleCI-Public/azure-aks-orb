@@ -98,8 +98,7 @@ parameters:
     default: ""
   tags:
     description: |
-      Space-separated tags in 'key[=value]' format, for the resource group to be created.
-      Only effective when create-resource-group is set to true.
+      Space-separated tags in 'key[=value]' format, for the cluster to be created.
     type: string
     default: ""
   resource-group-tags:
