@@ -40,14 +40,14 @@ parameters:
     default: ""
   service-principal:
     description: |
-      Service principal used for authentication to Azure APIs.
-    type: string
-    default: ""
+      Name of environment variable that stores the service principal used for authentication to Azure APIs.
+    type: env_var_name
+    default: AZURE_SP
   client-secret:
     description: |
-      Secret associated with the service principal. Required if "service-principal" is specified.
-    type: string
-    default: ""
+      Name of environment variable that stores the secret associated with the service principal. Required if "service-principal" is specified.
+    type: env_var_name
+    default: AZURE_SP_PASSWORD
   node-count:
     description: |
       Configures the number of nodes in the Kubernetes node pool.
@@ -98,8 +98,7 @@ parameters:
     default: ""
   tags:
     description: |
-      Space-separated tags in 'key[=value]' format, for the resource group to be created.
-      Only effective when create-resource-group is set to true.
+      Space-separated tags in 'key[=value]' format, for the cluster to be created.
     type: string
     default: ""
   resource-group-tags:
