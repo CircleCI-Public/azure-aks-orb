@@ -19,7 +19,7 @@ orbs:
   orb-tools: circleci/orb-tools@7.3.0
   queue: eddiewebb/queue@1.1.2
   helm: circleci/helm@0.1.0
-  kubernetes: circleci/kubernetes@0.3.0
+  kubernetes: circleci/kubernetes@0.4.0
 
 executors:
   python2-browsers:
@@ -241,11 +241,11 @@ jobs:
             - delete-resource-group:
                 cluster-name: << parameters.cluster-name >>
                 resource-group: << parameters.resource-group >>
-      - unless:
-          condition: << parameters.delete-service-principal >>
-          steps:
-            - delete-service-principal:
-                cluster-name: << parameters.cluster-name >>
+      #- unless:
+      #    condition: << parameters.delete-service-principal >>
+      #    steps:
+      #      - delete-service-principal:
+      #          cluster-name: << parameters.cluster-name >>
   create-deployment:
     parameters:
       executor:
@@ -450,7 +450,7 @@ workflows:
           name: delete-cluster-helm
           cluster-name: ${RESOURCE_NAME_PREFIX}-aks-orb-test-helm
           resource-group: ${RESOURCE_NAME_PREFIX}-aks-orb-test-helm-grp
-          delete-service-principal: true
+          delete-service-principal: false
           delete-resource-group: true
           requires:
             - azure-aks/delete-helm-release
@@ -499,7 +499,7 @@ workflows:
           name: delete-cluster-kubectl
           cluster-name: ${RESOURCE_NAME_PREFIX}-aks-orb-test-kubectl
           resource-group: ${RESOURCE_NAME_PREFIX}-aks-orb-test-kubectl-grp
-          delete-service-principal: true
+          delete-service-principal: false
           delete-resource-group: false
           requires:
             - update-container-image-kubectl

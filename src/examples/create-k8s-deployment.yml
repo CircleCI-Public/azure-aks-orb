@@ -5,8 +5,8 @@ usage:
   version: 2.1
 
   orbs:
-    azure-aks: circleci/azure-aks@0.1.0
-    kubernetes: circleci/kubernetes@0.3.0
+    azure-aks: circleci/azure-aks@0.1.1
+    kubernetes: circleci/kubernetes@0.4.0
 
   jobs:
     create-deployment:

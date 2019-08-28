@@ -10,8 +10,9 @@ The following [project environment variables](https://circleci.com/docs/2.0/env-
 
 | Variable                       | Description                      |
 | -------------------------------| ---------------------------------|
-| `AZURE_USERNAME`            | Azure user account name              |
-| `AZURE_PASSWORD`        | Azure user account password              |
+| `AZURE_SP`                     | Azure service principal          |
+| `AZURE_SP_PASSWORD`            | Azure service principal password |
+| `AZURE_SP_TENANT`              | Azure service principal tenant   |
 | `RESOURCE_NAME_PREFIX`     | Prefix for some resources created in tests. This is used just to make the project more portable.                |
 | `CIRCLECI_API_KEY`             | Used by the `queue` orb          |
 
