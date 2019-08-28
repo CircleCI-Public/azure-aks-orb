@@ -370,6 +370,7 @@ workflows:
           resource-group: ${RESOURCE_NAME_PREFIX}-orb-test-defaults-grp
           create-resource-group: true
           location: centralus
+          context: orb-publishing
           filters: *integration_test_filters
       - test-update-kubeconfig:
           name: test-update-kubeconfig_region
@@ -377,6 +378,7 @@ workflows:
           cluster-name: ${RESOURCE_NAME_PREFIX}-orb-test-defaults
           resource-group: ${RESOURCE_NAME_PREFIX}-orb-test-defaults-grp
           install-kubectl: true
+          context: orb-publishing
           requires:
             - setup-cluster-defaults
           filters: *integration_test_filters
@@ -385,6 +387,7 @@ workflows:
           executor: azure-aks/default
           cluster-name: ${RESOURCE_NAME_PREFIX}-orb-test-defaults
           resource-group: ${RESOURCE_NAME_PREFIX}-orb-test-defaults-grp
+          context: orb-publishing
           requires:
             - setup-cluster-defaults
           filters: *integration_test_filters
@@ -393,6 +396,7 @@ workflows:
           executor: azure-aks/azure-docker
           cluster-name: ${RESOURCE_NAME_PREFIX}-orb-test-defaults
           resource-group: ${RESOURCE_NAME_PREFIX}-orb-test-defaults-grp
+          context: orb-publishing
           requires:
             - setup-cluster-defaults
           filters: *integration_test_filters
@@ -401,6 +405,7 @@ workflows:
           executor: azure-aks/default
           cluster-name: ${RESOURCE_NAME_PREFIX}-orb-test-defaults
           resource-group: ${RESOURCE_NAME_PREFIX}-orb-test-defaults-grp
+          context: orb-publishing
           requires:
             - setup-cluster-defaults
           filters: *integration_test_filters
@@ -411,6 +416,7 @@ workflows:
           cluster-name: ${RESOURCE_NAME_PREFIX}-orb-test-defaults
           resource-group: ${RESOURCE_NAME_PREFIX}-orb-test-defaults-grp
           delete-service-principal: false
+          context: orb-publishing
           requires:
             - test-cluster-defaults
           filters: *integration_test_filters
@@ -421,11 +427,13 @@ workflows:
           resource-group: ${RESOURCE_NAME_PREFIX}-aks-orb-test-helm-grp
           create-resource-group: true
           location: centralus
+          context: orb-publishing
           filters: *integration_test_filters
       - azure-aks/install-helm-on-cluster:
           cluster-name: ${RESOURCE_NAME_PREFIX}-aks-orb-test-helm
           resource-group: ${RESOURCE_NAME_PREFIX}-aks-orb-test-helm-grp
           enable-cluster-wide-admin-access: true
+          context: orb-publishing
           requires:
             - setup-cluster-helm
           filters: *integration_test_filters
@@ -434,6 +442,7 @@ workflows:
           resource-group: ${RESOURCE_NAME_PREFIX}-aks-orb-test-helm-grp
           chart: stable/grafana
           release-name: grafana-release
+          context: orb-publishing
           requires:
             - azure-aks/install-helm-on-cluster
           filters: *integration_test_filters
@@ -443,6 +452,7 @@ workflows:
           release-name: grafana-release
           purge: true
           timeout: 600
+          context: orb-publishing
           requires:
             - azure-aks/install-helm-chart
           filters: *integration_test_filters
@@ -452,6 +462,7 @@ workflows:
           resource-group: ${RESOURCE_NAME_PREFIX}-aks-orb-test-helm-grp
           delete-service-principal: true
           delete-resource-group: true
+          context: orb-publishing
           requires:
             - azure-aks/delete-helm-release
           filters: *integration_test_filters
@@ -467,6 +478,7 @@ workflows:
           node-vm-size: "Standard_DS2_v2"
           no-ssh-key: true
           resource-group-tags: "owner=cci"
+          context: orb-publishing
           no-output-timeout: 30m
           filters: *integration_test_filters
       - create-deployment:
@@ -475,6 +487,7 @@ workflows:
           cluster-name: ${RESOURCE_NAME_PREFIX}-aks-orb-test-kubectl
           resource-group: ${RESOURCE_NAME_PREFIX}-aks-orb-test-kubectl-grp
           install-kubectl: true
+          context: orb-publishing
           requires:
             - setup-cluster-kubectl
           filters: *integration_test_filters
@@ -486,6 +499,7 @@ workflows:
           container-image-updates: "nginx=nginx:1.9.1"
           get-rollout-status: true
           record: true
+          context: orb-publishing
           post-steps:
             - kubernetes/delete-resource:
                 resource-types: "deployments"
@@ -501,6 +515,7 @@ workflows:
           resource-group: ${RESOURCE_NAME_PREFIX}-aks-orb-test-kubectl-grp
           delete-service-principal: true
           delete-resource-group: false
+          context: orb-publishing
           requires:
             - update-container-image-kubectl
           post-steps:
