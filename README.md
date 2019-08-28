@@ -27,7 +27,7 @@ Full usage examples can be found on the Azure AKS orb's page in the orb registry
 version: 2.1
 
 orbs:
-  azure-aks: circleci/azure-aks@0.1.1
+  azure-aks: circleci/azure-aks@0.2.1
   kubernetes: circleci/kubernetes@0.4.0
 
 jobs:
