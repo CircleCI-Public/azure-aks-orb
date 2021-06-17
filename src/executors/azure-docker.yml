@@ -1,4 +1,4 @@
 description: |
   Microsoft's Azure CLI Docker image
 docker:
-  - image: microsoft/azure-cli
+  - image: mcr.microsoft.com/azure-cli
